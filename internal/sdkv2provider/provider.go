@@ -235,6 +235,7 @@ func New(version string) func() *schema.Provider {
 				"cloudflare_pages_domain":                           resourceCloudflarePagesDomain(),
 				"cloudflare_pages_project":                          resourceCloudflarePagesProject(),
 				"cloudflare_queue":                                  resourceCloudflareQueue(),
+				"cloudflare_queue_consumer":                         resourceCloudflareQueueConsumer(),
 				"cloudflare_rate_limit":                             resourceCloudflareRateLimit(),
 				"cloudflare_record":                                 resourceCloudflareRecord(),
 				"cloudflare_regional_hostname":                      resourceCloudflareRegionalHostname(),
