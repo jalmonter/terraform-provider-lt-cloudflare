@@ -2,7 +2,6 @@ package sdkv2provider
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -33,19 +32,27 @@ func resourceCloudflareQueueConsumerUpdate(ctx context.Context, d *schema.Resour
 	accountID := d.Get(consts.AccountIDSchemaKey).(string)
 	scriptName := d.Get("script_name").(string)
 	queueName := d.Get("queue_name").(string)
+	deadLetterQueue := d.Get("dead_letter_queue").(string)
 
-	settings := d.Get("settings").(map[string]interface{})
+	settings := cloudflare.QueueConsumerSettings{}
+	if batchSize, ok := d.GetOk("settings.batch_size"); ok {
+		settings.BatchSize = batchSize.(int)
+	}
+	if maxWaitTime, ok := d.GetOk("settings.max_wait_time"); ok {
+		settings.MaxWaitTime = maxWaitTime.(int)
+	}
+	if maxRetries, ok := d.GetOk("settings.max_retries"); ok {
+		settings.MaxRetires = maxRetries.(int)
+	}
 
 	_, err := client.UpdateQueueConsumer(ctx, cloudflare.AccountIdentifier(accountID), cloudflare.UpdateQueueConsumerParams{
+		QueueName: queueName,
 		Consumer: cloudflare.QueueConsumer{
-			QueueName:  queueName,
-			ScriptName: scriptName,
-			Settings: cloudflare.QueueConsumerSettings{
-				BatchSize:   settings["batch_size"].(int),
-				MaxWaitTime: settings["max_wait_time"].(int),
-				MaxRetires:  settings["max_retries"].(int),
-			},
-			DeadLetterQueue: settings["dead_letter_queue"].(string),
+			Name:            scriptName,
+			ScriptName:      scriptName,
+			QueueName:       queueName,
+			Settings:        settings,
+			DeadLetterQueue: deadLetterQueue,
 		},
 	})
 	if err != nil {
@@ -59,8 +66,8 @@ func resourceCloudflareQueueConsumerUpdate(ctx context.Context, d *schema.Resour
 
 func resourceCloudflareQueueConsumerRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*cloudflare.API)
-	scriptName := d.Get("script_name").(string)
 	accountID := d.Get(consts.AccountIDSchemaKey).(string)
+	scriptName := d.Get("script_name").(string)
 	queueName := d.Get("queue_name").(string)
 
 	params := cloudflare.ListQueueConsumersParams{
@@ -80,12 +87,15 @@ func resourceCloudflareQueueConsumerRead(ctx context.Context, d *schema.Resource
 
 	for _, queueConsumer := range queueConsumers {
 		if queueConsumer.ScriptName == scriptName {
-			if settingsJson, err := json.Marshal(queueConsumer.Settings); err != nil {
-				return diag.FromErr(fmt.Errorf("failed to marshal settings attribute: %w", err))
-			} else if err := d.Set("settings", string(settingsJson)); err != nil {
-				return diag.FromErr(fmt.Errorf("failed to set settings attribute: %w", err))
+			if err := d.Set("settings.batch_size", queueConsumer.Settings.BatchSize); err != nil {
+				return diag.FromErr(fmt.Errorf("failed to set batch size queue settings attribute: %w", err))
 			}
-
+			if err := d.Set("settings.max_retries", queueConsumer.Settings.MaxRetires); err != nil {
+				return diag.FromErr(fmt.Errorf("failed to set max retries queue settings attribute: %w", err))
+			}
+			if err := d.Set("settings.max_wait_time", queueConsumer.Settings.MaxWaitTime); err != nil {
+				return diag.FromErr(fmt.Errorf("failed to set max wait time queue settings attribute: %w", err))
+			}
 			if err := d.Set("dead_letter_queue", queueConsumer.DeadLetterQueue); err != nil {
 				return diag.FromErr(fmt.Errorf("failed to set dead letter queue attribute: %w", err))
 			}
@@ -97,8 +107,8 @@ func resourceCloudflareQueueConsumerRead(ctx context.Context, d *schema.Resource
 
 func resourceCloudflareQueueConsumerDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*cloudflare.API)
-	scriptName := d.Get("script_name").(string)
 	accountID := d.Get(consts.AccountIDSchemaKey).(string)
+	scriptName := d.Get("script_name").(string)
 	queueName := d.Get("queue_name").(string)
 
 	err := client.DeleteQueueConsumer(ctx, cloudflare.AccountIdentifier(accountID), cloudflare.DeleteQueueConsumerParams{
@@ -106,7 +116,14 @@ func resourceCloudflareQueueConsumerDelete(ctx context.Context, d *schema.Resour
 		ConsumerName: scriptName,
 	})
 	if err != nil {
-		return diag.FromErr(err)
+		// If the resource is already deleted, we should not return without an error
+		// according to the terraform spec
+		var notFoundError *cloudflare.NotFoundError
+		if errors.As(err, &notFoundError) {
+			return nil
+		}
+
+		return diag.FromErr(fmt.Errorf("failed to delete queue consumers: %w", err))
 	}
 
 	d.SetId("")
