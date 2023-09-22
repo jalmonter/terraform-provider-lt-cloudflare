@@ -131,6 +131,21 @@ var queueBindingResource = &schema.Resource{
 	},
 }
 
+var d1BindingResource = &schema.Resource{
+	Schema: map[string]*schema.Schema{
+		"name": {
+			Type:        schema.TypeString,
+			Required:    true,
+			Description: "The global variable for the binding in your Worker code.",
+		},
+		"database_id": {
+			Type:        schema.TypeString,
+			Required:    true,
+			Description: "The database ID for the D1 database.",
+		},
+	},
+}
+
 func resourceCloudflareWorkerScriptSchema() map[string]*schema.Schema {
 	return map[string]*schema.Schema{
 		consts.AccountIDSchemaKey: {
@@ -212,6 +227,11 @@ func resourceCloudflareWorkerScriptSchema() map[string]*schema.Schema {
 			Type:     schema.TypeSet,
 			Optional: true,
 			Elem:     queueBindingResource,
+		},
+		"d1_binding": {
+			Type:     schema.TypeSet,
+			Optional: true,
+			Elem:     d1BindingResource,
 		},
 	}
 }
