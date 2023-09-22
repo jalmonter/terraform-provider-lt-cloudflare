@@ -22,11 +22,6 @@ var queueConsumerSettingsResource = &schema.Resource{
 			Description: "Maximum number of times to retry delivery of a message before failing.",
 			Optional:    true,
 		},
-		"dead_letter_queue": {
-			Type:        schema.TypeString,
-			Description: "Failed messages will redirect to this queue and then can then be viewed, deleted, or resent.",
-			Optional:    true,
-		},
 	},
 }
 
@@ -51,6 +46,11 @@ func resourceCloudflareQueueConsumerSchema() map[string]*schema.Schema {
 			Type:     schema.TypeSet,
 			Optional: true,
 			Elem:     queueConsumerSettingsResource,
+		},
+		"dead_letter_queue": {
+			Type:        schema.TypeString,
+			Description: "Failed messages will redirect to this queue and then can then be viewed, deleted, or resent.",
+			Optional:    true,
 		},
 	}
 }

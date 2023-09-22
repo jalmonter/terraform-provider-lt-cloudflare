@@ -2,6 +2,7 @@ package sdkv2provider
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -37,14 +38,14 @@ func resourceCloudflareQueueConsumerUpdate(ctx context.Context, d *schema.Resour
 
 	_, err := client.UpdateQueueConsumer(ctx, cloudflare.AccountIdentifier(accountID), cloudflare.UpdateQueueConsumerParams{
 		Consumer: cloudflare.QueueConsumer{
-			QueueName:       queueName,
-			ScriptName:      scriptName,
-			DeadLetterQueue: settings["dead_letter_queue"].(string),
+			QueueName:  queueName,
+			ScriptName: scriptName,
 			Settings: cloudflare.QueueConsumerSettings{
 				BatchSize:   settings["batch_size"].(int),
 				MaxWaitTime: settings["max_wait_time"].(int),
 				MaxRetires:  settings["max_retries"].(int),
 			},
+			DeadLetterQueue: settings["dead_letter_queue"].(string),
 		},
 	})
 	if err != nil {
@@ -79,8 +80,14 @@ func resourceCloudflareQueueConsumerRead(ctx context.Context, d *schema.Resource
 
 	for _, queueConsumer := range queueConsumers {
 		if queueConsumer.ScriptName == scriptName {
-			if err := d.Set("settings", queueConsumer); err != nil {
+			if settingsJson, err := json.Marshal(queueConsumer.Settings); err != nil {
+				return diag.FromErr(fmt.Errorf("failed to marshal settings attribute: %w", err))
+			} else if err := d.Set("settings", string(settingsJson)); err != nil {
 				return diag.FromErr(fmt.Errorf("failed to set settings attribute: %w", err))
+			}
+
+			if err := d.Set("dead_letter_queue", queueConsumer.DeadLetterQueue); err != nil {
+				return diag.FromErr(fmt.Errorf("failed to set dead letter queue attribute: %w", err))
 			}
 		}
 	}
